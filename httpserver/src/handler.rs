@@ -8,7 +8,7 @@ pub trait Handler {
     fn handle(req: &HttpRequest) -> HttpResponse;
     fn load_file(file_name: &str) -> Option<String> {
         //获取当前项目的根目录, 由 cargo 内部的环境变量提供
-        let default_path = format!("{}/public", env!("CARGO_MINIFEST_DIR"));
+        let default_path = format!("{}/public", env!("CARGO_MANIFEST_DIR"));
         // 获取系统环境变量 PUBLIC_PATH
         let public_path = env::var("PUBLIC_PATH").unwrap_or(default_path);
         let full_path = format!("{}/{}", public_path, file_name);
@@ -69,7 +69,7 @@ impl WebServiceHandler {
     fn load_json() -> Vec<OrderState> {
         let default_path = format!("{}/data", env!("CARGO_MANIFEST_DIR"));
         let data_path = env::var("DATA_PATH").unwrap_or(default_path);
-        let full_path = format!("{}/{}", data_path, "order.json");
+        let full_path = format!("{}/{}", data_path, "orders.json");
         let json_content = fs::read_to_string(full_path);
         let orders: Vec<OrderState> = serde_json::from_str(json_content.unwrap().as_str()).unwrap();
         orders
@@ -77,5 +77,21 @@ impl WebServiceHandler {
 }
 
 impl Handler for WebServiceHandler {
+    fn handle(req: &HttpRequest) -> HttpResponse {
+        let http_request::Resource::Path(s) = &req.resource;
+        let route: Vec<&str> =  s.split("/").collect();
+
+        match route[2] {
+            "shipping" if route.len() > 2 && route[3] == "orders" =>  {
+                let body = Some(serde_json::to_string(&Self::load_json()).unwrap());
+                let mut headers: HashMap<&str, &str> = HashMap::new();
+                headers.insert("Content-Type", "application/json");
+                HttpResponse::new("200", Some(headers), body)
+            }
+            _ => {
+                HttpResponse::new("404", None, Self::load_file("404.html"))
+            }
+        }
+    }
 
 }
